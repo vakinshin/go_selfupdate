@@ -1,0 +1,55 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-upload:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            goos: windows
+            goarch: amd64
+            ext: .exe
+          - os: ubuntu-latest
+            goos: linux
+            goarch: amd64
+            ext: ""
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Build asset
+        shell: bash
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          APP_VERSION: ${{ github.ref_name }}
+          SELFUPDATE_REPO: ${{ github.repository }}
+        run: |
+          mkdir -p dist
+          VERSION="${APP_VERSION#v}"
+          OUTPUT="dist/go_selfupdate_${GOOS}_${GOARCH}${{ matrix.ext }}"
+          go build \
+            -ldflags "-X main.version=${VERSION} -X main.selfUpdateRepo=${SELFUPDATE_REPO}" \
+            -o "${OUTPUT}" .
+
+      - name: Upload asset to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/go_selfupdate_${{ matrix.goos }}_${{ matrix.goarch }}${{ matrix.ext }}
