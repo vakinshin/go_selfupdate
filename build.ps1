@@ -38,12 +38,16 @@ function Read-DotEnv {
 $envValues = Read-DotEnv -Path $EnvFile
 $repo = ""
 $appVersion = "0.1.0"
+$githubToken = ""
 
 if ($envValues.ContainsKey("SELFUPDATE_REPO")) {
     $repo = $envValues["SELFUPDATE_REPO"]
 }
 if ($envValues.ContainsKey("APP_VERSION")) {
     $appVersion = $envValues["APP_VERSION"]
+}
+if ($envValues.ContainsKey("GITHUB_TOKEN")) {
+    $githubToken = $envValues["GITHUB_TOKEN"]
 }
 
 if ($repo -eq "") {
@@ -52,7 +56,8 @@ if ($repo -eq "") {
 
 $ldflags = @(
     "-X", "main.version=$appVersion",
-    "-X", "main.selfUpdateRepo=$repo"
+    "-X", "main.selfUpdateRepo=$repo",
+    "-X", "main.githubToken=$githubToken"
 )
 
 if (-not (Test-Path -Path $OutputDir)) {
@@ -62,6 +67,7 @@ if (-not (Test-Path -Path $OutputDir)) {
 Write-Host "Building with:"
 Write-Host "  APP_VERSION=$appVersion"
 Write-Host "  SELFUPDATE_REPO=$repo"
+Write-Host "  GITHUB_TOKEN_SET=$($githubToken -ne '')"
 Write-Host "  OUTPUT_DIR=$OutputDir"
 Write-Host "  TARGETS=$($Targets -join ', ')"
 

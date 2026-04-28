@@ -17,6 +17,7 @@ import (
 
 var version = "0.1.0"
 var selfUpdateRepo = ""
+var githubToken = ""
 
 func normalizeVersion(v string) string {
 	trimmed := strings.TrimSpace(v)
@@ -46,6 +47,7 @@ func main() {
 
 	updateButton := widget.NewButton("Check updates", func() {
 		repoSlug := strings.TrimSpace(selfUpdateRepo)
+		token := strings.TrimSpace(githubToken)
 		log.Printf("check updates clicked, repo=%q", repoSlug)
 
 		if repoSlug == "" {
@@ -62,7 +64,16 @@ func main() {
 		}
 		log.Printf("current version parsed: %s", normalizeVersion(currentVersion.String()))
 
-		latest, found, err := selfupdate.DetectLatest(repoSlug)
+		updater, err := selfupdate.NewUpdater(selfupdate.Config{
+			APIToken: token,
+		})
+		if err != nil {
+			log.Printf("updater init failed: %v", err)
+			updateStatus.SetText("Updater initialization failed: " + err.Error())
+			return
+		}
+
+		latest, found, err := updater.DetectLatest(repoSlug)
 		if err != nil {
 			log.Printf("update check failed: %v", err)
 			updateStatus.SetText("Update check failed: " + err.Error())
@@ -82,7 +93,7 @@ func main() {
 
 		updateStatus.SetText(fmt.Sprintf("Updating to %s...", normalizeVersion(latest.Version.String())))
 		log.Printf("starting self update to: %s", normalizeVersion(latest.Version.String()))
-		updatedRelease, err := selfupdate.UpdateSelf(currentVersion, repoSlug)
+		updatedRelease, err := updater.UpdateSelf(currentVersion, repoSlug)
 		if err != nil {
 			log.Printf("self update failed: %v", err)
 			updateStatus.SetText("Update failed: " + err.Error())
