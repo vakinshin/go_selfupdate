@@ -20,11 +20,9 @@ jobs:
         shell: bash
         run: |
           test -f dist/go_selfupdate_windows_amd64.exe
-          test -f dist/go_selfupdate_linux_amd64
 
       - name: Upload asset to release
         uses: softprops/action-gh-release@v2
         with:
           files: |
             dist/go_selfupdate_windows_amd64.exe
-            dist/go_selfupdate_linux_amd64
