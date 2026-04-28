@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"strings"
 
 	"github.com/blang/semver"
@@ -29,6 +30,8 @@ func normalizeVersion(v string) string {
 }
 
 func main() {
+	log.Printf("app starting, version=%s", normalizeVersion(version))
+
 	a := app.New()
 	w := a.NewWindow("Simple Fyne App")
 	w.Resize(fyne.NewSize(520, 300))
@@ -43,34 +46,45 @@ func main() {
 
 	updateButton := widget.NewButton("Check updates", func() {
 		repoSlug := strings.TrimSpace(selfUpdateRepo)
+		log.Printf("check updates clicked, repo=%q", repoSlug)
+
 		if repoSlug == "" {
+			log.Print("self update repo is empty")
 			updateStatus.SetText("SELFUPDATE_REPO is not embedded (check build ldflags)")
 			return
 		}
 
 		currentVersion, err := semver.ParseTolerant(version)
 		if err != nil {
+			log.Printf("invalid current version: %v", err)
 			updateStatus.SetText("Invalid app version: " + err.Error())
 			return
 		}
+		log.Printf("current version parsed: %s", normalizeVersion(currentVersion.String()))
 
 		latest, found, err := selfupdate.DetectLatest(repoSlug)
 		if err != nil {
+			log.Printf("update check failed: %v", err)
 			updateStatus.SetText("Update check failed: " + err.Error())
 			return
 		}
 		if !found {
+			log.Print("no suitable release found for current platform")
 			updateStatus.SetText("No suitable release found for this platform")
 			return
 		}
+		log.Printf("latest version found: %s", normalizeVersion(latest.Version.String()))
 		if latest.Version.LTE(currentVersion) {
+			log.Print("already up to date")
 			updateStatus.SetText("Already up to date: " + normalizeVersion(currentVersion.String()))
 			return
 		}
 
 		updateStatus.SetText(fmt.Sprintf("Updating to %s...", normalizeVersion(latest.Version.String())))
+		log.Printf("starting self update to: %s", normalizeVersion(latest.Version.String()))
 		updatedRelease, err := selfupdate.UpdateSelf(currentVersion, repoSlug)
 		if err != nil {
+			log.Printf("self update failed: %v", err)
 			updateStatus.SetText("Update failed: " + err.Error())
 			return
 		}
@@ -79,6 +93,7 @@ func main() {
 		if updatedRelease != nil {
 			newVersion = normalizeVersion(updatedRelease.Version.String())
 		}
+		log.Printf("self update completed, new version=%s", newVersion)
 		updateStatus.SetText("Updated successfully to " + newVersion)
 		dialog.ShowInformation(
 			"Update completed",
