@@ -1,6 +1,8 @@
 param(
     [string]$EnvFile = ".env",
-    [string]$Output = "go_selfupdate.exe"
+    [string]$OutputDir = "dist",
+    [string]$BinaryName = "go_selfupdate",
+    [string[]]$Targets = @("windows/amd64")
 )
 
 Set-StrictMode -Version Latest
@@ -44,24 +46,65 @@ if ($envValues.ContainsKey("APP_VERSION")) {
     $appVersion = $envValues["APP_VERSION"]
 }
 
+if ($repo -eq "") {
+    throw "SELFUPDATE_REPO is required in $EnvFile"
+}
+
 $ldflags = @(
     "-X", "main.version=$appVersion",
     "-X", "main.selfUpdateRepo=$repo"
 )
 
-$outputDir = Split-Path -Path $Output -Parent
-if ($outputDir -and -not (Test-Path -Path $outputDir)) {
-    New-Item -ItemType Directory -Path $outputDir | Out-Null
+if (-not (Test-Path -Path $OutputDir)) {
+    New-Item -ItemType Directory -Path $OutputDir | Out-Null
 }
 
 Write-Host "Building with:"
 Write-Host "  APP_VERSION=$appVersion"
 Write-Host "  SELFUPDATE_REPO=$repo"
-Write-Host "  OUTPUT=$Output"
+Write-Host "  OUTPUT_DIR=$OutputDir"
+Write-Host "  TARGETS=$($Targets -join ', ')"
 
-go build -ldflags ($ldflags -join " ") -o $Output .
-if ($LASTEXITCODE -ne 0) {
-    throw "go build failed with exit code $LASTEXITCODE"
+$ldflagsString = $ldflags -join " "
+$builtAssets = @()
+
+foreach ($target in $Targets) {
+    $parts = $target.Split("/")
+    if ($parts.Length -ne 2) {
+        throw "Invalid target '$target'. Use format os/arch, for example windows/amd64"
+    }
+
+    $goos = $parts[0].Trim().ToLowerInvariant()
+    $goarch = $parts[1].Trim().ToLowerInvariant()
+    if ($goos -eq "" -or $goarch -eq "") {
+        throw "Invalid target '$target'. os and arch are required."
+    }
+
+    $assetName = "${BinaryName}_${goos}_${goarch}"
+    if ($goos -eq "windows") {
+        $assetName += ".exe"
+    }
+
+    $outputPath = Join-Path $OutputDir $assetName
+    Write-Host ""
+    Write-Host "Building asset: $assetName"
+
+    $env:GOOS = $goos
+    $env:GOARCH = $goarch
+    go build -ldflags $ldflagsString -o $outputPath .
+    if ($LASTEXITCODE -ne 0) {
+        throw "go build failed for target '$target' with exit code $LASTEXITCODE"
+    }
+
+    $builtAssets += $outputPath
 }
 
+Remove-Item Env:GOOS -ErrorAction SilentlyContinue
+Remove-Item Env:GOARCH -ErrorAction SilentlyContinue
+
+Write-Host ""
 Write-Host "Build completed successfully."
+Write-Host "Assets:"
+foreach ($asset in $builtAssets) {
+    Write-Host "  $asset"
+}
